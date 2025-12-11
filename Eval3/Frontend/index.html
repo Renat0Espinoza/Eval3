@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mueblería Hermanos S.A.</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f4; }
+        h1 { color: #333; text-align: center; }
+        #lista-muebles { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; }
+        .card { 
+            background: white; border-radius: 8px; padding: 15px; width: 250px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .card h3 { margin-top: 0; color: #2c3e50; }
+        .price { font-size: 1.2em; color: #27ae60; font-weight: bold; }
+        .stock { color: #7f8c8d; font-size: 0.9em; }
+        .btn-buy {
+            background-color: #27ae60; color: white; border: none; padding: 10px;
+            border-radius: 5px; cursor: pointer; margin-top: 10px; width: 100%;
+            font-size: 1em; transition: background 0.3s;
+        }
+        .btn-buy:hover { background-color: #2980b9; }
+    </style>
+</head>
+<body>
+
+    <h1>Catálogo de Muebles</h1>
+    <div id="lista-muebles">Cargando catálogo...</div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+
+        function cargarCatalogo() {
+            fetch(`${API_BASE}/muebles`)
+                .then(response => response.json())
+                .then(data => {
+                    const contenedor = document.getElementById("lista-muebles");
+                    contenedor.innerHTML = "";
+                    
+                    if(data.length === 0) {
+                        contenedor.innerHTML = "<p>No hay muebles disponibles.</p>";
+                        return;
+                    }
+
+                    data.forEach(mueble => {
+                        if(mueble.estado === "Activo") {
+                            const card = document.createElement("div");
+                            card.className = "card";
+                            card.innerHTML = `
+                                <div>
+                                    <h3>${mueble.nombre_mueble}</h3>
+                                    <p>Tipo: ${mueble.tipo}</p>
+                                    <p class="price">$${mueble.precio_base}</p>
+                                    <p class="stock">Stock disponible: <strong>${mueble.stock}</strong></p>
+                                </div>
+                                <button class="btn-buy" onclick="comprarMueble(${mueble.id_mueble})">
+                                    Comprar
+                                </button>
+                            `;
+                            contenedor.appendChild(card);
+                        }
+                    });
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById("lista-muebles").innerHTML = '<p style="color:red">Error conectando con el servidor.</p>';
+                });
+        }
+
+        async function comprarMueble(idMueble) {
+            const cantidadInput = prompt("¿Cuántas unidades deseas comprar?");
+            const cantidad = parseInt(cantidadInput);
+
+            if (!cantidad || cantidad <= 0) {
+                alert("Operación cancelada o cantidad inválida.");
+                return;
+            }
+
+            try {
+                const cotizacionPayload = {
+                    detalles: [
+                        {
+                            cantidad: cantidad,
+                            mueble: { id_mueble: idMueble },
+                            variante: null
+                        }
+                    ]
+                };
+
+                const respCotizacion = await fetch(`${API_BASE}/cotizaciones`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(cotizacionPayload)
+                });
+
+                if (!respCotizacion.ok) throw new Error("Error al crear cotización inicial.");
+                
+                const cotizacionCreada = await respCotizacion.json();
+
+                const respVenta = await fetch(`${API_BASE}/ventas/confirmar/${cotizacionCreada.id}`, {
+                    method: "POST"
+                });
+
+                if (!respVenta.ok) {
+                    const errorJson = await respVenta.json().catch(() => ({}));
+                    throw new Error(errorJson.message || "Stock insuficiente o error en venta.");
+                }
+
+                alert(`¡Compra exitosa!\nSe han comprado ${cantidad} unidad(es).`);
+                cargarCatalogo();
+
+            } catch (error) {
+                console.error(error);
+                alert("Error en la compra: " + error.message);
+            }
+        }
+
+        cargarCatalogo();
+    </script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Gustavo</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; }
+        h1, h2 { color: #333; }
+    
+        .form-container {
+            background: white; padding: 20px; border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;
+            display: flex; gap: 10px; flex-wrap: wrap; align-items: end;
+        }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 0.8em; margin-bottom: 5px; color: #666; }
+        input, select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+    
+        button { cursor: pointer; border: none; padding: 8px 12px; border-radius: 4px; color: white; font-weight: bold;}
+        .btn-crear { background-color: #28a745; }
+        .btn-stock { background-color: #17a2b8; margin-right: 5px; }
+        .btn-delete { background-color: #dc3545; }
+        .btn-toggle { min-width: 90px; }
+
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #343a40; color: white; }
+        tr:hover { background-color: #f1f1f1; }
+    </style>
+</head>
+<body>
+
+    <h1>Panel de Administración (Gustavo)</h1>
+
+    <div class="form-container">
+        <div class="form-group">
+            <label>Nombre:</label>
+            <input type="text" id="newNombre" placeholder="">
+        </div>
+        <div class="form-group">
+            <label>Tipo:</label>
+            <input type="text" id="newTipo" placeholder="">
+        </div>
+        <div class="form-group">
+            <label>Precio:</label>
+            <input type="number" id="newPrecio" placeholder="">
+        </div>
+        <div class="form-group">
+            <label>Stock Inicial:</label>
+            <input type="number" id="newStock" placeholder="">
+        </div>
+        <div class="form-group">
+            <label>Material:</label>
+            <input type="text" id="newMaterial" placeholder="">
+        </div>
+        <div class="form-group">
+            <label>Tamaño:</label>
+            <select id="newTamano">
+                <option value="Pequeño">Pequeño</option>
+                <option value="Mediano">Mediano</option>
+                <option value="Grande">Grande</option>
+            </select>
+        </div>
+        <button class="btn-crear" onclick="crearMueble()">+ Crear Nuevo</button>
+    </div>
+
+    <h2>Inventario Actual</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Precio</th>
+                <th>Stock</th>
+                <th>Estado</th>
+                <th>Gestión de Stock</th>
+                <th>Estado / Eliminar</th>
+            </tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+    </table>
+
+    <script>
+        const API_URL = "http://localhost:8080/api/muebles";
+
+        function cargarMuebles() {
+            fetch(API_URL)
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById("tabla-body");
+                    tbody.innerHTML = "";
+                    
+                    data.forEach(mueble => {
+                        const tr = document.createElement("tr");
+                        
+                        let btnEstado = "";
+                        if (mueble.estado === "Activo") {
+                            btnEstado = `<button class="btn-toggle" style="background-color: #ffc107; color: black;" onclick="cambiarEstado(${mueble.id_mueble}, "desactivar")">Desactivar</button>`;
+                        } else {
+                            btnEstado = `<button class="btn-toggle" style="background-color: #28a745;" onclick="cambiarEstado(${mueble.id_mueble}, 'activar')">Activar</button>`;
+                        }
+
+                        tr.innerHTML = `
+                            <td>${mueble.id_mueble}</td>
+                            <td>${mueble.nombre_mueble} <br><small>${mueble.tipo}</small></td>
+                            <td>$${mueble.precio_base}</td>
+                            <td><strong>${mueble.stock}</strong></td>
+                            <td>${mueble.estado}</td>
+                            <td>
+                                <button class="btn-stock" onclick="agregarStock(${mueble.id_mueble})">+ Stock</button>
+                            </td>
+                            <td>
+                                ${btnEstado}
+                                <button class="btn-delete" onclick="eliminarMueble(${mueble.id_mueble})">- Eliminar</button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                })
+                .catch(e => console.error(e));
+        }
+
+        function crearMueble() {
+            const nuevoMueble = {
+                nombre_mueble: document.getElementById("newNombre").value,
+                tipo: document.getElementById("newTipo").value,
+                precio_base: parseFloat(document.getElementById("newPrecio").value),
+                stock: parseInt(document.getElementById("newStock").value),
+                material: document.getElementById("newMaterial").value,
+                tamaño: document.getElementById("newTamano").value,
+                estado: "Activo"
+            };
+
+            if(!nuevoMueble.nombre_mueble || !nuevoMueble.precio_base) {
+                alert("Por favor completa nombre y precio");
+                return;
+            }
+
+            fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(nuevoMueble)
+            }).then(res => {
+                if(res.ok) {
+                    alert("Mueble creado exitosamente");
+                    document.querySelectorAll("input").forEach(i => i.value = "");
+                    cargarMuebles();
+                } else {
+                    alert("Error al crear mueble");
+                }
+            });
+        }
+
+        function agregarStock(id) {
+            const cantidad = prompt("¿Cuántas unidades deseas agregar al stock?");
+            if(cantidad && parseInt(cantidad) > 0) {
+                fetch(`${API_URL}/${id}/stock?cantidad=${cantidad}`, { method: "PATCH" })
+                    .then(() => {
+                        alert("Stock actualizado");
+                        cargarMuebles();
+                    });
+            }
+        }
+
+        function eliminarMueble(id) {
+            if(confirm("¿Estás seguro de ELIMINAR este mueble permanentemente?\nEsta acción no se puede deshacer.")) {
+                fetch(`${API_URL}/${id}`, { method: "DELETE" })
+                    .then(res => {
+                        if(res.ok) {
+                            alert("Mueble eliminado");
+                            cargarMuebles();
+                        } else {
+                            alert("No se puede eliminar");
+                        }
+                    });
+            }
+        }
+
+        function cambiarEstado(id, accion) {
+            fetch(`${API_URL}/${id}/${accion}`, { method: "PATCH" })
+                .then(() => cargarMuebles());
+        }
+
+        cargarMuebles();
+    </script>
+</body>
+</html>
